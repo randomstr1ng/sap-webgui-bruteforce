@@ -2,6 +2,8 @@
 This script does a simple brute-force attack against SAP WebGUI.
 For that it can handle the SAP specific 'XSRF' Cookies and Request parameters.
 
+A Metasploit version of this tool can be found in the folder: [metasploit-module](./metasploit-module)
+
 ## Installation
 
 ```bash
