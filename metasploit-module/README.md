@@ -11,6 +11,7 @@ Download the metasploit module and copy it into the custom modules path
 ```bash
 mkdir -p ~/.msf4/modules/auxiliary/scanner/sap/
 cp sap_web_bruteforce.py ~/.msf4/modules/auxiliary/scanner/sap/
+chmod +x ~/.msf4/modules/auxiliary/scanner/sap/
 ```
 
 ## Usage
