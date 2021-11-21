@@ -31,6 +31,7 @@ metadata = {
     'type': 'single_scanner',
     'options': {
         'TARGETURI': {'type': 'string', 'description': 'The base path', 'required': True, 'default': '/sap/bc/gui/sap/its/webgui'},
+        'rhost': {'type': 'address', 'description': 'Target address', 'required': True, 'default': None},
         'RPORT': {'type': 'port', 'description': 'Target port', 'required': True},
         'SAP_SID': {'type': 'string', 'description': 'Target SAP SID', 'required': True},
         'SAP_CLIENT': {'type': 'string', 'description': 'Target SAP client', 'required': False, 'default': '001'},
@@ -44,9 +45,9 @@ metadata = {
 
 def build_url(args):
     if args['SSL'] == "true":
-        url =  "https://{}:{}{}".format(str(args['RHOSTS']), str(args['RPORT']), str(args['TARGETURI']))
+        url =  "https://{}:{}{}".format(str(args['rhost']), str(args['RPORT']), str(args['TARGETURI']))
     else:
-        url =  "http://{}:{}{}".format(str(args['RHOSTS']), str(args['RPORT']), str(args['TARGETURI']))
+        url =  "http://{}:{}{}".format(str(args['rhost']), str(args['RPORT']), str(args['TARGETURI']))
     return str(url)
 
 def fiori_login(url, user, password, client):
@@ -103,7 +104,6 @@ def webgui_login(url, user, password, client, sid):
 
     response = session.post(url, data=post_parameters, verify=False)
     login_success = (response.status_code == 200) and (len(response.history)>0)
-    login_success = not (response.status_code == 200) and (len(response.history)>0)
     return login_success
 
 def bruteforce(users, password, url, args):
@@ -132,7 +132,7 @@ def load_wordlist(args):
     module.log("users loaded", "debug")
     with open(args['PASS_FILE'], "r", encoding="utf-8") as pwfile:
         for password in pwfile:
-            password = password.srip("\n")
+            password = password.strip("\n")
             pw_list.append(password)
     module.log("passwords loaded", "debug")
     return user_list, pw_list
@@ -144,7 +144,7 @@ def run(args):
         return
     url = build_url(args)
 
-    if len(args['CRED_FILE']>0):
+    if len(args['CRED_FILE'])>0:
         with open(args['CREDENTIAL_FILE'], "r", encoding="utf-8") as credfile:
             for line in credfile:
                 line = line.strip()
